@@ -1,6 +1,6 @@
 import type { ProductsResponse } from '../model/types';
 
-import { joinApiUrl } from '@/shared/api';
+import { fetchJson, joinApiUrl } from '@/shared/api';
 
 type GetProductsParams = {
   page: number;
@@ -9,11 +9,6 @@ type GetProductsParams = {
 
 export async function getProducts(params: GetProductsParams, signal?: AbortSignal) {
   const url = joinApiUrl(`/products?page=${params.page}&limit=${params.limit}`);
-  const res = await fetch(url, { signal });
 
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-
-  return (await res.json()) as ProductsResponse;
+  return await fetchJson<ProductsResponse>(url, { signal });
 }

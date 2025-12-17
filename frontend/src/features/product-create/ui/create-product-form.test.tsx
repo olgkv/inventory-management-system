@@ -7,16 +7,6 @@ import { CreateProductForm } from './create-product-form';
 vi.mock('@/entities/product/api/create-product', () => {
 	return {
 		createProduct: vi.fn(),
-		ApiError: class ApiError extends Error {
-			status: number;
-			body: unknown;
-
-			constructor(status: number) {
-				super(`HTTP ${status}`);
-				this.status = status;
-				this.body = undefined;
-			}
-		},
 	};
 });
 

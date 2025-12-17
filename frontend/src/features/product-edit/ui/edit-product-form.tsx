@@ -4,7 +4,8 @@ import type { Product } from 'shared';
 import { CreateProductDtoSchema } from 'shared';
 import { z } from 'zod';
 
-import { ApiError, updateProduct } from '@/entities/product/api/update-product';
+import { updateProduct } from '@/entities/product/api/update-product';
+import { ApiError } from '@/shared/api';
 
 type FieldErrors = {
 	article?: string;
@@ -90,7 +91,7 @@ export function EditProductForm(props: EditProductFormProps) {
 			await updateProduct(props.product.id, parsed.data);
 			props.onUpdated?.();
 			props.onCancel?.();
-		} catch (err) {
+		} catch (err: unknown) {
 			if (err instanceof ApiError) {
 				if (err.status === 404) {
 					setFormError('Product not found');

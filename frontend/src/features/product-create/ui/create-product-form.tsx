@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { CreateProductDtoSchema } from 'shared';
 import { z } from 'zod';
 
-import { ApiError, createProduct } from '@/entities/product/api/create-product';
+import { createProduct } from '@/entities/product/api/create-product';
+import { ApiError } from '@/shared/api';
 
 type FieldErrors = {
 	article?: string;
@@ -83,7 +84,7 @@ export function CreateProductForm(props: CreateProductFormProps) {
 			setQuantity('0');
 			props.onCreated?.();
 			props.onCancel?.();
-		} catch (err) {
+		} catch (err: unknown) {
 			if (err instanceof ApiError) {
 				if (err.status === 409) {
 					setFieldErrors({ article: 'Article already exists' });

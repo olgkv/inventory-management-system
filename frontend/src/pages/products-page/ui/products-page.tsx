@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getProducts } from '@/entities/product/api/get-products';
+import { deleteProduct } from '@/entities/product/api/delete-product';
 import type { Product } from '@/entities/product/model/types';
 import { CreateProductForm } from '@/features/product-create';
 import { EditProductForm } from '@/features/product-edit';
+import { ApiError } from '@/shared/api';
 import { Modal } from '@/shared/ui';
 
 type ProductsPageProps = {
@@ -20,6 +22,10 @@ export function ProductsPage(props: ProductsPageProps) {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+	const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+	const [isDeleting, setIsDeleting] = useState(false);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -70,6 +76,36 @@ export function ProductsPage(props: ProductsPageProps) {
 		setEditingProduct(null);
 	}
 
+	function onCancelDelete() {
+		setIsDeleteOpen(false);
+		setDeletingProduct(null);
+		setDeleteError(null);
+	}
+
+	async function onConfirmDelete() {
+		if (!deletingProduct) return;
+
+		setIsDeleting(true);
+		setDeleteError(null);
+		try {
+			await deleteProduct(deletingProduct.id);
+			setReloadToken((t) => t + 1);
+			onCancelDelete();
+		} catch (e: unknown) {
+			if (e instanceof ApiError) {
+				if (e.status === 404) {
+					setDeleteError('Product not found');
+					return;
+				}
+				setDeleteError(e.message);
+				return;
+			}
+			setDeleteError(e instanceof Error ? e.message : 'Unknown error');
+		} finally {
+			setIsDeleting(false);
+		}
+	}
+
 	useEffect(() => {
 		const controller = new AbortController();
 		void load(controller.signal);
@@ -95,6 +131,35 @@ export function ProductsPage(props: ProductsPageProps) {
 			<Modal isOpen={isEditOpen} title="Edit product" onClose={onCancelEdit}>
 				{editingProduct ? (
 					<EditProductForm product={editingProduct} onUpdated={onUpdated} onCancel={onCancelEdit} />
+				) : null}
+			</Modal>
+
+			<Modal isOpen={isDeleteOpen} title="Delete product" onClose={onCancelDelete}>
+				{deletingProduct ? (
+					<div>
+						<p className="text-sm text-slate-700">
+							Delete product <span className="font-mono text-xs">{deletingProduct.article}</span> —{' '}
+							<span className="font-medium">{deletingProduct.name}</span>?
+						</p>
+						{deleteError ? <p className="mt-3 text-sm text-red-600">{deleteError}</p> : null}
+						<div className="mt-5 flex items-center justify-end gap-2">
+							<button
+								type="button"
+								onClick={onCancelDelete}
+								className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={() => void onConfirmDelete()}
+								disabled={isDeleting}
+								className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{isDeleting ? 'Deleting...' : 'Delete'}
+							</button>
+						</div>
+					</div>
 				) : null}
 			</Modal>
 			<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -165,16 +230,29 @@ export function ProductsPage(props: ProductsPageProps) {
 										<td className="border-b border-slate-100 py-3 pr-4">{(p.priceMinor / 100).toFixed(2)}</td>
 										<td className="border-b border-slate-100 py-3 text-right">{p.quantity}</td>
 										<td className="border-b border-slate-100 py-3 text-right">
-											<button
-												type="button"
-												onClick={() => {
-													setEditingProduct(p);
-													setIsEditOpen(true);
-												}}
-												className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 shadow-sm hover:bg-slate-50"
-											>
-												Edit
-											</button>
+											<div className="flex items-center justify-end gap-2">
+												<button
+													type="button"
+													onClick={() => {
+														setEditingProduct(p);
+														setIsEditOpen(true);
+													}}
+													className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 shadow-sm hover:bg-slate-50"
+												>
+													Edit
+												</button>
+												<button
+													type="button"
+													onClick={() => {
+														setDeletingProduct(p);
+														setIsDeleteOpen(true);
+														setDeleteError(null);
+													}}
+													className="inline-flex h-9 items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50"
+												>
+													Delete
+												</button>
+											</div>
 										</td>
 									</tr>
 								))}
