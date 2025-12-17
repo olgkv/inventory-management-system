@@ -3,16 +3,19 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
   "scripts": {
     "dev": "npm run build -- --watch",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.esm.json && node -e \"require('node:fs').writeFileSync('dist/esm/package.json', '{\\\"type\\\":\\\"module\\\"}', 'utf8')\"",
     "lint": "echo \"TODO shared\"",
     "test": "echo \"TODO shared\""
   },

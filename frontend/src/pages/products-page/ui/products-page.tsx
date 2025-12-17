@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getProducts } from '@/entities/product/api/get-products';
 import type { Product } from '@/entities/product/model/types';
+import { CreateProductForm } from '@/features/product-create';
+import { Modal } from '@/shared/ui';
 
 type ProductsPageProps = {
 	pageSize?: number;
@@ -13,6 +15,8 @@ export function ProductsPage(props: ProductsPageProps) {
 	const pageSize = Math.min(props.pageSize ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
 
 	const [page, setPage] = useState(1);
+	const [reloadToken, setReloadToken] = useState(0);
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -42,85 +46,110 @@ export function ProductsPage(props: ProductsPageProps) {
 		[page, pageSize]
 	);
 
+	function onCreated() {
+		setPage(1);
+		setReloadToken((t) => t + 1);
+		setIsCreateOpen(false);
+	}
+
+	function onCancelCreate() {
+		setIsCreateOpen(false);
+	}
+
 	useEffect(() => {
 		const controller = new AbortController();
 		void load(controller.signal);
 		return () => controller.abort();
-	}, [load]);
+	}, [load, reloadToken]);
 
 	return (
-		<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-			<div className="flex items-center justify-between gap-4">
-				<h2 className="text-lg font-semibold">Products</h2>
-				<div className="flex items-center gap-3">
-					<p className="text-sm text-slate-600">Total: {total}</p>
-					<span className="text-slate-300">|</span>
-					<p className="text-sm text-slate-600">
-						Page {page} of {totalPages}
-					</p>
+		<>
+			<div className="mt-8 flex items-center justify-end">
+				<button
+					type="button"
+					onClick={() => setIsCreateOpen(true)}
+					className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
+				>
+					Create product
+				</button>
+			</div>
+
+			<Modal isOpen={isCreateOpen} title="Create product" onClose={onCancelCreate}>
+				<CreateProductForm onCreated={onCreated} onCancel={onCancelCreate} />
+			</Modal>
+			<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="text-lg font-semibold">Products</h2>
+					<div className="flex items-center gap-3">
+						<p className="text-sm text-slate-600">Total: {total}</p>
+						<span className="text-slate-300">|</span>
+						<p className="text-sm text-slate-600">
+							Page {page} of {totalPages}
+						</p>
+					</div>
 				</div>
-			</div>
 
-			<div className="mt-4 flex items-center justify-end gap-2">
-				<button
-					type="button"
-					onClick={() => setPage((p) => Math.max(1, p - 1))}
-					disabled={isLoading || page <= 1}
-					className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					Prev
-				</button>
-				<button
-					type="button"
-					onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-					disabled={isLoading || page >= totalPages}
-					className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					Next
-				</button>
-			</div>
-
-			{isLoading ? (
-				<div className="mt-6 text-sm text-slate-600">Loading...</div>
-			) : error ? (
-				<div className="mt-6">
-					<p className="text-sm text-red-600">Failed to load products: {error}</p>
+				<div className="mt-4 flex items-center justify-end gap-2">
 					<button
 						type="button"
-						onClick={() => void load()}
-						className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+						onClick={() => setPage((p) => Math.max(1, p - 1))}
+						disabled={isLoading || page <= 1}
+						className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						Retry
+						Prev
+					</button>
+					<button
+						type="button"
+						onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+						disabled={isLoading || page >= totalPages}
+						className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						Next
 					</button>
 				</div>
-			) : products.length === 0 ? (
-				<div className="mt-6 text-sm text-slate-600">No products found.</div>
-			) : (
-				<div className="mt-6 overflow-x-auto">
-					<table className="w-full border-separate border-spacing-0">
-						<thead>
-							<tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-								<th className="border-b border-slate-200 pb-3 pr-4">ID</th>
-								<th className="border-b border-slate-200 pb-3 pr-4">Article</th>
-								<th className="border-b border-slate-200 pb-3 pr-4">Name</th>
-								<th className="border-b border-slate-200 pb-3 pr-4">Price</th>
-								<th className="border-b border-slate-200 pb-3 text-right">Qty</th>
-							</tr>
-						</thead>
-						<tbody>
-							{products.map((p) => (
-								<tr key={p.id} className="text-sm text-slate-800">
-									<td className="border-b border-slate-100 py-3 pr-4">{p.id}</td>
-									<td className="border-b border-slate-100 py-3 pr-4 font-mono text-xs">{p.article}</td>
-									<td className="border-b border-slate-100 py-3 pr-4">{p.name}</td>
-									<td className="border-b border-slate-100 py-3 pr-4">{(p.priceMinor / 100).toFixed(2)}</td>
-									<td className="border-b border-slate-100 py-3 text-right">{p.quantity}</td>
+
+				{isLoading ? (
+					<div className="mt-6 text-sm text-slate-600">Loading...</div>
+				) : error ? (
+					<div className="mt-6">
+						<p className="text-sm text-red-600">Failed to load products: {error}</p>
+						<button
+							type="button"
+							onClick={() => void load()}
+							className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+						>
+							Retry
+						</button>
+					</div>
+				) : products.length === 0 ? (
+					<div className="mt-6 text-sm text-slate-600">No products found.</div>
+				) : (
+					<div className="mt-6 overflow-x-auto">
+						<table className="w-full border-separate border-spacing-0">
+							<thead>
+								<tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+									<th className="border-b border-slate-200 pb-3 pr-4">ID</th>
+									<th className="border-b border-slate-200 pb-3 pr-4">Article</th>
+									<th className="border-b border-slate-200 pb-3 pr-4">Name</th>
+									<th className="border-b border-slate-200 pb-3 pr-4">Price</th>
+									<th className="border-b border-slate-200 pb-3 text-right">Qty</th>
 								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			)}
-		</section>
+							</thead>
+							<tbody>
+								{products.map((p) => (
+									<tr key={p.id} className="text-sm text-slate-800">
+										<td className="border-b border-slate-100 py-3 pr-4">{p.id}</td>
+										<td className="border-b border-slate-100 py-3 pr-4 font-mono text-xs">{p.article}</td>
+										<td className="border-b border-slate-100 py-3 pr-4">{p.name}</td>
+										<td className="border-b border-slate-100 py-3 pr-4">{(p.priceMinor / 100).toFixed(2)}</td>
+										<td className="border-b border-slate-100 py-3 text-right">{p.quantity}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+			</section>
+		</>
 	);
 }
