@@ -34,6 +34,7 @@ export function ProductsPage(props: ProductsPageProps) {
 	const [products, setProducts] = useState<Product[]>([]);
 	const [total, setTotal] = useState(0);
 	const hasLoadedOnceRef = useRef(false);
+	const [spinnerVisible, setSpinnerVisible] = useState(true);
 
 	const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -52,6 +53,8 @@ export function ProductsPage(props: ProductsPageProps) {
 				setTotal(json.total);
 				hasLoadedOnceRef.current = true;
 				setHasLoadedOnce(true);
+				// Delay hiding the spinner to ensure it's visible and fades out smoothly
+				setTimeout(() => setSpinnerVisible(false), 600);
 			} catch (e) {
 				if (e instanceof DOMException && e.name === 'AbortError') {
 					return;
@@ -59,6 +62,7 @@ export function ProductsPage(props: ProductsPageProps) {
 				hasLoadedOnceRef.current = true;
 				setHasLoadedOnce(true);
 				setError(e instanceof Error ? e.message : 'Unknown error');
+				setTimeout(() => setSpinnerVisible(false), 600);
 			} finally {
 				setIsLoading(false);
 				setIsRefreshing(false);
@@ -140,55 +144,61 @@ export function ProductsPage(props: ProductsPageProps) {
 
 	return (
 		<>
-			<div className="mt-8 flex items-center justify-end">
-				<button
-					type="button"
-					onClick={() => setIsCreateOpen(true)}
-					className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
-				>
-					Create product
-				</button>
-			</div>
+				<div className={`fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-300 ${spinnerVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+					<div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-100 border-top border-t-slate-900"></div>
+				</div>
 
-			<Modal isOpen={isCreateOpen} title="Create product" onClose={onCancelCreate}>
-				<CreateProductForm onCreated={onCreated} onCancel={onCancelCreate} />
-			</Modal>
-
-			<Modal isOpen={isEditOpen} title="Edit product" onClose={onCancelEdit}>
-				{editingProduct ? (
-					<EditProductForm product={editingProduct} onUpdated={onUpdated} onCancel={onCancelEdit} />
-				) : null}
-			</Modal>
-
-			<Modal isOpen={isDeleteOpen} title="Delete product" onClose={onCancelDelete}>
-				{deletingProduct ? (
-					<div>
-						<p className="text-sm text-slate-700">
-							Delete product <span className="font-mono text-xs">{deletingProduct.article}</span> —{' '}
-							<span className="font-medium">{deletingProduct.name}</span>?
-						</p>
-						{deleteError ? <p className="mt-3 text-sm text-red-600">{deleteError}</p> : null}
-						<div className="mt-5 flex items-center justify-end gap-2">
-							<button
-								type="button"
-								onClick={onCancelDelete}
-								className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								onClick={() => void onConfirmDelete()}
-								disabled={isDeleting}
-								className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-							>
-								{isDeleting ? 'Deleting...' : 'Delete'}
-							</button>
-						</div>
+				<div className={`page-content transition-opacity duration-300 ${spinnerVisible && isLoading && !hasLoadedOnce ? 'opacity-0' : 'opacity-100'}`}>
+					<div className="mt-8 flex items-center justify-end">
+						<button
+							type="button"
+							onClick={() => setIsCreateOpen(true)}
+							className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
+						>
+							Create product
+						</button>
 					</div>
-				) : null}
-			</Modal>
-			<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+
+					<Modal isOpen={isCreateOpen} title="Create product" onClose={onCancelCreate}>
+						<CreateProductForm onCreated={onCreated} onCancel={onCancelCreate} />
+					</Modal>
+
+					<Modal isOpen={isEditOpen} title="Edit product" onClose={onCancelEdit}>
+						{editingProduct ? (
+							<EditProductForm product={editingProduct} onUpdated={onUpdated} onCancel={onCancelEdit} />
+						) : null}
+					</Modal>
+
+					<Modal isOpen={isDeleteOpen} title="Delete product" onClose={onCancelDelete}>
+						{deletingProduct ? (
+							<div>
+								<p className="text-sm text-slate-700">
+									Delete product <span className="font-mono text-xs">{deletingProduct.article}</span> —{' '}
+									<span className="font-medium">{deletingProduct.name}</span>?
+								</p>
+								{deleteError ? <p className="mt-3 text-sm text-red-600">{deleteError}</p> : null}
+								<div className="mt-5 flex items-center justify-end gap-2">
+									<button
+										type="button"
+										onClick={onCancelDelete}
+										className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+									>
+										Cancel
+									</button>
+									<button
+										type="button"
+										onClick={() => void onConfirmDelete()}
+										disabled={isDeleting}
+										className="inline-flex h-10 items-center justify-center rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										{isDeleting ? 'Deleting...' : 'Delete'}
+									</button>
+								</div>
+							</div>
+						) : null}
+					</Modal>
+
+					<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
 				<div className="flex items-center justify-between gap-4">
 					<h2 className="text-lg font-semibold">Products</h2>
 					<div className="flex items-center gap-3">
@@ -328,6 +338,7 @@ export function ProductsPage(props: ProductsPageProps) {
 					<div className="mt-3 text-sm text-slate-600">No products found.</div>
 				) : null}
 			</section>
-		</>
-	);
+		</div>
+	</>
+);
 }
