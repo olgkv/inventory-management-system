@@ -109,4 +109,44 @@ describe('ProductsService', () => {
 
     await expect(service.update(1, { article: 'A-2' })).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('throws NotFoundException when deleting missing product', async () => {
+    const repo: Pick<Repository<Product>, 'delete'> = {
+      delete: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProductsService,
+        {
+          provide: getRepositoryToken(Product),
+          useValue: repo,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(ProductsService);
+
+    await expect(service.remove(123)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('deletes product when affected is 1', async () => {
+    const repo: Pick<Repository<Product>, 'delete'> = {
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProductsService,
+        {
+          provide: getRepositoryToken(Product),
+          useValue: repo,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(ProductsService);
+
+    await expect(service.remove(1)).resolves.toBeUndefined();
+  });
 });

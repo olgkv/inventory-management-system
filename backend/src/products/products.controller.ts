@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   CreateProductDto,
   CreateProductDtoSchema,
@@ -71,5 +82,14 @@ export class ProductsController {
       priceMinor: updated.priceMinor,
       quantity: updated.quantity,
     };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(
+    @Param('id', new ZodValidationPipe(z.coerce.number().int().positive()))
+    id: number
+  ): Promise<void> {
+    await this.productsService.remove(id);
   }
 }
