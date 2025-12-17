@@ -8,7 +8,7 @@ const eslintConfigPrettier = require('eslint-config-prettier');
 /** @type {import('eslint').Linter.Config[]} */
 module.exports = [
   {
-    ignores: ['dist/**', 'node_modules/**', 'pgdata/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', 'pgdata/**'],
   },
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
