@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -59,5 +59,54 @@ describe('ProductsService', () => {
     await expect(
       service.create({ article: 'A-1', name: 'P1', priceMinor: 100, quantity: 1 })
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('throws NotFoundException when updating missing product', async () => {
+    const repo: Pick<Repository<Product>, 'findOneBy'> = {
+      findOneBy: jest.fn().mockResolvedValue(null),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProductsService,
+        {
+          provide: getRepositoryToken(Product),
+          useValue: repo,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(ProductsService);
+
+    await expect(service.update(123, { name: 'X' })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws ConflictException on duplicate article during update (23505)', async () => {
+    const existing = {
+      id: 1,
+      article: 'A-1',
+      name: 'P1',
+      priceMinor: 100,
+      quantity: 1,
+    } as unknown as Product;
+
+    const repo: Pick<Repository<Product>, 'findOneBy' | 'save'> = {
+      findOneBy: jest.fn().mockResolvedValue(existing),
+      save: jest.fn().mockRejectedValue({ code: '23505' }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProductsService,
+        {
+          provide: getRepositoryToken(Product),
+          useValue: repo,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(ProductsService);
+
+    await expect(service.update(1, { article: 'A-2' })).rejects.toBeInstanceOf(ConflictException);
   });
 });
