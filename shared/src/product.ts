@@ -4,14 +4,14 @@ export interface Product {
   id: ProductId;
   article: string;
   name: string;
-  price: number;
+  priceMinor: number;
   quantity: number;
 }
 
 export interface CreateProductDto {
   article: string;
   name: string;
-  price: number;
+  priceMinor: number;
   quantity: number;
 }
 

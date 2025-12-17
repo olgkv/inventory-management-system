@@ -16,6 +16,9 @@
     "lint": "echo \"TODO shared\"",
     "test": "echo \"TODO shared\""
   },
+  "dependencies": {
+    "zod": "^4.2.1"
+  },
   "files": [
     "dist"
   ],
