@@ -1,0 +1,16 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "echo \"TODO shared\"",
+    "build": "echo \"TODO shared\"",
+    "lint": "echo \"TODO shared\"",
+    "test": "echo \"TODO shared\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

@@ -1,0 +1,12 @@
+node_modules/
+.env
+*.log
+pgdata/
+dist/
+.DS_Store
+coverage/
+.nyc_output
+
+# macOS
+.DS_Store
+.AppleDouble

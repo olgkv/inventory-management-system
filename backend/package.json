@@ -1,0 +1,16 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "echo \"TODO backend\"",
+    "build": "echo \"TODO backend\"",
+    "lint": "echo \"TODO backend\"",
+    "test": "echo \"TODO backend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

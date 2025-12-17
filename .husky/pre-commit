@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo "🔍 Running pre-commit checks..."
+
+# Запускаем lint-staged для всех измененных файлов
+npx lint-staged
