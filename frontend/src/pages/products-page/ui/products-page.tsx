@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getProducts } from '@/entities/product/api/get-products';
 import type { Product } from '@/entities/product/model/types';
 import { CreateProductForm } from '@/features/product-create';
+import { EditProductForm } from '@/features/product-edit';
 import { Modal } from '@/shared/ui';
 
 type ProductsPageProps = {
@@ -17,6 +18,8 @@ export function ProductsPage(props: ProductsPageProps) {
 	const [page, setPage] = useState(1);
 	const [reloadToken, setReloadToken] = useState(0);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isEditOpen, setIsEditOpen] = useState(false);
+	const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,17 @@ export function ProductsPage(props: ProductsPageProps) {
 		setIsCreateOpen(false);
 	}
 
+	function onUpdated() {
+		setReloadToken((t) => t + 1);
+		setIsEditOpen(false);
+		setEditingProduct(null);
+	}
+
+	function onCancelEdit() {
+		setIsEditOpen(false);
+		setEditingProduct(null);
+	}
+
 	useEffect(() => {
 		const controller = new AbortController();
 		void load(controller.signal);
@@ -76,6 +90,12 @@ export function ProductsPage(props: ProductsPageProps) {
 
 			<Modal isOpen={isCreateOpen} title="Create product" onClose={onCancelCreate}>
 				<CreateProductForm onCreated={onCreated} onCancel={onCancelCreate} />
+			</Modal>
+
+			<Modal isOpen={isEditOpen} title="Edit product" onClose={onCancelEdit}>
+				{editingProduct ? (
+					<EditProductForm product={editingProduct} onUpdated={onUpdated} onCancel={onCancelEdit} />
+				) : null}
 			</Modal>
 			<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
 				<div className="flex items-center justify-between gap-4">
@@ -133,6 +153,7 @@ export function ProductsPage(props: ProductsPageProps) {
 									<th className="border-b border-slate-200 pb-3 pr-4">Name</th>
 									<th className="border-b border-slate-200 pb-3 pr-4">Price</th>
 									<th className="border-b border-slate-200 pb-3 text-right">Qty</th>
+									<th className="border-b border-slate-200 pb-3 text-right">Actions</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -143,6 +164,18 @@ export function ProductsPage(props: ProductsPageProps) {
 										<td className="border-b border-slate-100 py-3 pr-4">{p.name}</td>
 										<td className="border-b border-slate-100 py-3 pr-4">{(p.priceMinor / 100).toFixed(2)}</td>
 										<td className="border-b border-slate-100 py-3 text-right">{p.quantity}</td>
+										<td className="border-b border-slate-100 py-3 text-right">
+											<button
+												type="button"
+												onClick={() => {
+													setEditingProduct(p);
+													setIsEditOpen(true);
+												}}
+												className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-900 shadow-sm hover:bg-slate-50"
+											>
+												Edit
+											</button>
+										</td>
 									</tr>
 								))}
 							</tbody>
