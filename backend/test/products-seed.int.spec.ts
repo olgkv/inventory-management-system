@@ -7,21 +7,29 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { CreateProductsTable1734469320000 } from '../src/migrations/1734469320000-CreateProductsTable';
 import {
-  TEST_MISSING_ID,
+  TEST_PAGINATION_LIMIT_MAX,
   TEST_POSTGRES_IMAGE,
   TEST_POSTGRES_INTERNAL_PORT,
+  TEST_SEED_COUNT_DEFAULT,
 } from './test-constants';
 import { waitForPostgres } from './test-postgres';
 
 type StartedPostgresContainer = Awaited<ReturnType<GenericContainer['start']>>;
 
-const PRODUCT_PRICE_MINOR = 100;
-const PRODUCT_QTY = 1;
+const PAGE_1 = 1;
 
-describe('DELETE /products/:id', () => {
-  let app: INestApplication;
+async function bootstrapApp(): Promise<INestApplication> {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+
+  const app = moduleRef.createNestApplication();
+  await app.init();
+  return app;
+}
+
+describe('Seed (idempotent products)', () => {
   let container: StartedPostgresContainer;
-  let productId: number;
 
   beforeAll(async () => {
     const username = 'test';
@@ -58,13 +66,6 @@ describe('DELETE /products/:id', () => {
 
     await migrationDataSource.initialize();
     await migrationDataSource.runMigrations();
-
-    const rows = await migrationDataSource.query(
-      'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4) RETURNING id',
-      ['A-1', 'Product 1', PRODUCT_PRICE_MINOR, PRODUCT_QTY]
-    );
-    productId = Number(rows[0].id);
-
     await migrationDataSource.destroy();
 
     process.env.POSTGRES_HOST = host;
@@ -73,32 +74,38 @@ describe('DELETE /products/:id', () => {
     process.env.POSTGRES_PASSWORD = password;
     process.env.POSTGRES_DB = database;
 
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    await app.init();
+    // Force seed even under Jest
+    process.env.SEED_FORCE = 'true';
+    process.env.SEED_COUNT = String(TEST_SEED_COUNT_DEFAULT);
   });
 
   afterAll(async () => {
-    await app?.close().catch(() => undefined);
+    delete process.env.SEED_FORCE;
+    delete process.env.SEED_COUNT;
     await container?.stop().catch(() => undefined);
   });
 
-  it('returns 204 and deletes product', async () => {
-    await request(app.getHttpServer())
-      .delete(`/products/${productId}`)
-      .expect(HttpStatus.NO_CONTENT);
+  it('seeds products on first app start and stays idempotent', async () => {
+    const app1 = await bootstrapApp();
 
-    await request(app.getHttpServer())
-      .delete(`/products/${productId}`)
-      .expect(HttpStatus.NOT_FOUND);
-  });
+    const res1 = await request(app1.getHttpServer())
+      .get('/products')
+      .query({ page: PAGE_1, limit: TEST_PAGINATION_LIMIT_MAX })
+      .expect(HttpStatus.OK);
 
-  it('returns 404 for missing product', async () => {
-    await request(app.getHttpServer())
-      .delete(`/products/${TEST_MISSING_ID}`)
-      .expect(HttpStatus.NOT_FOUND);
+    expect(res1.body.total).toBe(TEST_SEED_COUNT_DEFAULT);
+
+    await app1.close();
+
+    const app2 = await bootstrapApp();
+
+    const res2 = await request(app2.getHttpServer())
+      .get('/products')
+      .query({ page: PAGE_1, limit: TEST_PAGINATION_LIMIT_MAX })
+      .expect(HttpStatus.OK);
+
+    expect(res2.body.total).toBe(TEST_SEED_COUNT_DEFAULT);
+
+    await app2.close();
   });
 });

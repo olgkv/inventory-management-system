@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { PAGINATION_LIMIT_MAX } from './constants';
+
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(50).default(10),
+  limit: z.coerce.number().int().positive().max(PAGINATION_LIMIT_MAX).default(10),
 });
 
 export const paginatedResponseSchema = <T extends z.ZodTypeAny>(item: T) =>

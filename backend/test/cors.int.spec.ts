@@ -1,47 +1,18 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { Client } from 'pg';
 import request from 'supertest';
 import { GenericContainer, Wait } from 'testcontainers';
 
 import { AppModule } from '../src/app.module';
 import { enableAppCors } from '../src/common/cors';
+import {
+  TEST_FRONTEND_ORIGIN,
+  TEST_POSTGRES_IMAGE,
+  TEST_POSTGRES_INTERNAL_PORT,
+} from './test-constants';
+import { waitForPostgres } from './test-postgres';
 
 type StartedPostgresContainer = Awaited<ReturnType<GenericContainer['start']>>;
-
-async function waitForPostgres(opts: {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database: string;
-}) {
-  const startedAt = Date.now();
-  const timeoutMs = 30_000;
-
-  let lastError: unknown;
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      const client = new Client({
-        host: opts.host,
-        port: opts.port,
-        user: opts.user,
-        password: opts.password,
-        database: opts.database,
-      });
-
-      await client.connect();
-      await client.query('SELECT 1');
-      await client.end();
-      return;
-    } catch (e) {
-      lastError = e;
-      await new Promise(r => setTimeout(r, 300));
-    }
-  }
-
-  throw lastError;
-}
 
 describe('CORS', () => {
   let app: INestApplication;
@@ -52,18 +23,18 @@ describe('CORS', () => {
     const password = 'test';
     const database = 'testdb';
 
-    container = await new GenericContainer('postgres:18-alpine')
+    container = await new GenericContainer(TEST_POSTGRES_IMAGE)
       .withEnvironment({
         POSTGRES_USER: username,
         POSTGRES_PASSWORD: password,
         POSTGRES_DB: database,
       })
-      .withExposedPorts(5432)
+      .withExposedPorts(TEST_POSTGRES_INTERNAL_PORT)
       .withWaitStrategy(Wait.forListeningPorts())
       .start();
 
     const host = container.getHost();
-    const port = container.getMappedPort(5432);
+    const port = container.getMappedPort(TEST_POSTGRES_INTERNAL_PORT);
 
     await waitForPostgres({ host, port, user: username, password, database });
 
@@ -73,7 +44,7 @@ describe('CORS', () => {
     process.env.POSTGRES_PASSWORD = password;
     process.env.POSTGRES_DB = database;
 
-    process.env.CORS_ORIGIN = 'http://localhost:5174';
+    process.env.CORS_ORIGIN = TEST_FRONTEND_ORIGIN;
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -90,7 +61,7 @@ describe('CORS', () => {
   });
 
   it('adds Access-Control-Allow-Origin for allowed origin', async () => {
-    const origin = 'http://localhost:5174';
+    const origin = TEST_FRONTEND_ORIGIN;
 
     await request(app.getHttpServer())
       .get('/health')
@@ -99,7 +70,7 @@ describe('CORS', () => {
   });
 
   it('responds to preflight request with CORS headers', async () => {
-    const origin = 'http://localhost:5174';
+    const origin = TEST_FRONTEND_ORIGIN;
 
     await request(app.getHttpServer())
       .options('/products')

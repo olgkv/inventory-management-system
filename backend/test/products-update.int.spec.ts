@@ -1,48 +1,24 @@
-import { INestApplication } from '@nestjs/common';
+import { HttpStatus, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { Client } from 'pg';
 import request from 'supertest';
 import { GenericContainer, Wait } from 'testcontainers';
 import { DataSource } from 'typeorm';
 
 import { AppModule } from '../src/app.module';
 import { CreateProductsTable1734469320000 } from '../src/migrations/1734469320000-CreateProductsTable';
+import {
+  TEST_MISSING_ID,
+  TEST_POSTGRES_IMAGE,
+  TEST_POSTGRES_INTERNAL_PORT,
+} from './test-constants';
+import { waitForPostgres } from './test-postgres';
 
 type StartedPostgresContainer = Awaited<ReturnType<GenericContainer['start']>>;
 
-async function waitForPostgres(opts: {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database: string;
-}) {
-  const startedAt = Date.now();
-  const timeoutMs = 30_000;
-
-  let lastError: unknown;
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      const client = new Client({
-        host: opts.host,
-        port: opts.port,
-        user: opts.user,
-        password: opts.password,
-        database: opts.database,
-      });
-
-      await client.connect();
-      await client.query('SELECT 1');
-      await client.end();
-      return;
-    } catch (e) {
-      lastError = e;
-      await new Promise(r => setTimeout(r, 300));
-    }
-  }
-
-  throw lastError;
-}
+const PRODUCT_1_PRICE_MINOR = 100;
+const PRODUCT_1_QTY = 1;
+const PRODUCT_2_PRICE_MINOR = 200;
+const PRODUCT_2_QTY = 2;
 
 describe('PUT /products/:id', () => {
   let app: INestApplication;
@@ -55,18 +31,18 @@ describe('PUT /products/:id', () => {
     const password = 'test';
     const database = 'testdb';
 
-    container = await new GenericContainer('postgres:18-alpine')
+    container = await new GenericContainer(TEST_POSTGRES_IMAGE)
       .withEnvironment({
         POSTGRES_USER: username,
         POSTGRES_PASSWORD: password,
         POSTGRES_DB: database,
       })
-      .withExposedPorts(5432)
+      .withExposedPorts(TEST_POSTGRES_INTERNAL_PORT)
       .withWaitStrategy(Wait.forListeningPorts())
       .start();
 
     const host = container.getHost();
-    const port = container.getMappedPort(5432);
+    const port = container.getMappedPort(TEST_POSTGRES_INTERNAL_PORT);
 
     await waitForPostgres({ host, port, user: username, password, database });
 
@@ -88,11 +64,11 @@ describe('PUT /products/:id', () => {
 
     const rows1 = await migrationDataSource.query(
       'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4) RETURNING id',
-      ['A-1', 'Product 1', 100, 1]
+      ['A-1', 'Product 1', PRODUCT_1_PRICE_MINOR, PRODUCT_1_QTY]
     );
     const rows2 = await migrationDataSource.query(
       'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4) RETURNING id',
-      ['A-2', 'Product 2', 200, 2]
+      ['A-2', 'Product 2', PRODUCT_2_PRICE_MINOR, PRODUCT_2_QTY]
     );
 
     product1Id = Number(rows1[0].id);
@@ -123,7 +99,7 @@ describe('PUT /products/:id', () => {
     const res = await request(app.getHttpServer())
       .put(`/products/${product1Id}`)
       .send({ name: 'Updated name' })
-      .expect(200);
+      .expect(HttpStatus.OK);
 
     expect(res.body.id).toBe(product1Id);
     expect(res.body.name).toBe('Updated name');
@@ -131,20 +107,23 @@ describe('PUT /products/:id', () => {
   });
 
   it('returns 404 for missing product', async () => {
-    await request(app.getHttpServer()).put('/products/999999').send({ name: 'X' }).expect(404);
+    await request(app.getHttpServer())
+      .put(`/products/${TEST_MISSING_ID}`)
+      .send({ name: 'X' })
+      .expect(HttpStatus.NOT_FOUND);
   });
 
   it('returns 409 on duplicate article', async () => {
     await request(app.getHttpServer())
       .put(`/products/${product2Id}`)
       .send({ article: 'A-1' })
-      .expect(409);
+      .expect(HttpStatus.CONFLICT);
   });
 
   it('returns 400 on invalid body', async () => {
     await request(app.getHttpServer())
       .put(`/products/${product1Id}`)
       .send({ priceMinor: -1 })
-      .expect(400);
+      .expect(HttpStatus.BAD_REQUEST);
   });
 });

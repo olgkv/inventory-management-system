@@ -1,42 +1,17 @@
-import { Client } from 'pg';
 import { GenericContainer, Wait } from 'testcontainers';
 import { DataSource } from 'typeorm';
 
+import { PG_UNIQUE_VIOLATION } from '../src/common/postgres-error-codes';
 import { CreateProductsTable1734469320000 } from '../src/migrations/1734469320000-CreateProductsTable';
+import { TEST_POSTGRES_IMAGE, TEST_POSTGRES_INTERNAL_PORT } from './test-constants';
+import { waitForPostgres } from './test-postgres';
 
-async function waitForPostgres(opts: {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  database: string;
-}) {
-  const startedAt = Date.now();
-  const timeoutMs = 30_000;
+// waitForPostgres moved to test-postgres helper
 
-  let lastError: unknown;
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      const client = new Client({
-        host: opts.host,
-        port: opts.port,
-        user: opts.user,
-        password: opts.password,
-        database: opts.database,
-      });
-
-      await client.connect();
-      await client.query('SELECT 1');
-      await client.end();
-      return;
-    } catch (e) {
-      lastError = e;
-      await new Promise(r => setTimeout(r, 300));
-    }
-  }
-
-  throw lastError;
-}
+const PRODUCT_1_PRICE_MINOR = 100;
+const PRODUCT_1_QTY = 1;
+const PRODUCT_2_PRICE_MINOR = 200;
+const PRODUCT_2_QTY = 2;
 
 describe('DB migrations + products schema', () => {
   it('applies migrations and enforces unique article constraint', async () => {
@@ -44,18 +19,18 @@ describe('DB migrations + products schema', () => {
     const password = 'test';
     const database = 'testdb';
 
-    const container = await new GenericContainer('postgres:18-alpine')
+    const container = await new GenericContainer(TEST_POSTGRES_IMAGE)
       .withEnvironment({
         POSTGRES_USER: username,
         POSTGRES_PASSWORD: password,
         POSTGRES_DB: database,
       })
-      .withExposedPorts(5432)
+      .withExposedPorts(TEST_POSTGRES_INTERNAL_PORT)
       .withWaitStrategy(Wait.forListeningPorts())
       .start();
 
     const host = container.getHost();
-    const port = container.getMappedPort(5432);
+    const port = container.getMappedPort(TEST_POSTGRES_INTERNAL_PORT);
     await waitForPostgres({ host, port, user: username, password, database });
 
     const dataSource = new DataSource({
@@ -77,15 +52,15 @@ describe('DB migrations + products schema', () => {
 
       await dataSource.query(
         'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4)',
-        ['A-1', 'Product 1', 100, 1]
+        ['A-1', 'Product 1', PRODUCT_1_PRICE_MINOR, PRODUCT_1_QTY]
       );
 
       await expect(
         dataSource.query(
           'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4)',
-          ['A-1', 'Product 2', 200, 2]
+          ['A-1', 'Product 2', PRODUCT_2_PRICE_MINOR, PRODUCT_2_QTY]
         )
-      ).rejects.toMatchObject({ code: '23505' });
+      ).rejects.toMatchObject({ code: PG_UNIQUE_VIOLATION });
     } finally {
       await dataSource.destroy().catch(() => undefined);
       await container.stop().catch(() => undefined);
