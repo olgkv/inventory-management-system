@@ -14,7 +14,8 @@ async function waitForPostgres(opts: {
   const startedAt = Date.now();
   const timeoutMs = 30_000;
 
-  while (true) {
+  let lastError: unknown;
+  while (Date.now() - startedAt < timeoutMs) {
     try {
       const client = new Client({
         host: opts.host,
@@ -29,12 +30,12 @@ async function waitForPostgres(opts: {
       await client.end();
       return;
     } catch (e) {
-      if (Date.now() - startedAt > timeoutMs) {
-        throw e;
-      }
+      lastError = e;
       await new Promise(r => setTimeout(r, 300));
     }
   }
+
+  throw lastError;
 }
 
 describe('DB migrations + products schema', () => {
