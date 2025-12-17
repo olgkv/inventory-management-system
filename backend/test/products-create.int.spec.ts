@@ -44,7 +44,7 @@ async function waitForPostgres(opts: {
   throw lastError;
 }
 
-describe('GET /products (pagination)', () => {
+describe('POST /products', () => {
   let app: INestApplication;
   let container: StartedPostgresContainer;
 
@@ -68,7 +68,6 @@ describe('GET /products (pagination)', () => {
 
     await waitForPostgres({ host, port, user: username, password, database });
 
-    // Run migrations
     const migrationDataSource = new DataSource({
       type: 'postgres',
       host,
@@ -84,24 +83,8 @@ describe('GET /products (pagination)', () => {
 
     await migrationDataSource.initialize();
     await migrationDataSource.runMigrations();
-
-    // Seed 3 products
-    await migrationDataSource.query(
-      'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4)',
-      ['A-1', 'Product 1', 100, 1]
-    );
-    await migrationDataSource.query(
-      'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4)',
-      ['A-2', 'Product 2', 200, 2]
-    );
-    await migrationDataSource.query(
-      'INSERT INTO products (article, name, "priceMinor", quantity) VALUES ($1, $2, $3, $4)',
-      ['A-3', 'Product 3', 300, 3]
-    );
-
     await migrationDataSource.destroy();
 
-    // Configure Nest to use this DB via env vars (AppModule reads process.env)
     process.env.POSTGRES_HOST = host;
     process.env.POSTGRES_PORT = String(port);
     process.env.POSTGRES_USER = username;
@@ -121,25 +104,32 @@ describe('GET /products (pagination)', () => {
     await container?.stop().catch(() => undefined);
   });
 
-  it('returns { data, total } and paginates with page/limit', async () => {
+  it('creates a product (201)', async () => {
     const res = await request(app.getHttpServer())
-      .get('/products')
-      .query({ page: 1, limit: 2 })
-      .expect(200);
+      .post('/products')
+      .send({ article: 'A-1', name: 'Product 1', priceMinor: 100, quantity: 1 })
+      .expect(201);
 
-    expect(res.body.total).toBe(3);
-    expect(res.body.data).toHaveLength(2);
-
-    const res2 = await request(app.getHttpServer())
-      .get('/products')
-      .query({ page: 2, limit: 2 })
-      .expect(200);
-
-    expect(res2.body.total).toBe(3);
-    expect(res2.body.data).toHaveLength(1);
+    expect(res.body.id).toBeDefined();
+    expect(res.body.article).toBe('A-1');
   });
 
-  it('rejects limit > 50', async () => {
-    await request(app.getHttpServer()).get('/products').query({ page: 1, limit: 51 }).expect(400);
+  it('returns 409 on duplicate article', async () => {
+    await request(app.getHttpServer())
+      .post('/products')
+      .send({ article: 'A-2', name: 'Product 2', priceMinor: 100, quantity: 1 })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/products')
+      .send({ article: 'A-2', name: 'Product 2', priceMinor: 100, quantity: 1 })
+      .expect(409);
+  });
+
+  it('returns 400 on invalid body', async () => {
+    await request(app.getHttpServer())
+      .post('/products')
+      .send({ article: 'A-3', priceMinor: 100, quantity: 1 })
+      .expect(400);
   });
 });

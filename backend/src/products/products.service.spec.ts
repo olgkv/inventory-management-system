@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -30,5 +31,33 @@ describe('ProductsService', () => {
       take: 10,
       order: { id: 'ASC' },
     });
+  });
+
+  it('throws ConflictException on duplicate article (23505)', async () => {
+    const repo: Pick<Repository<Product>, 'create' | 'save'> = {
+      create: jest.fn().mockReturnValue({
+        article: 'A-1',
+        name: 'P1',
+        priceMinor: 100,
+        quantity: 1,
+      } as unknown as Product),
+      save: jest.fn().mockRejectedValue({ code: '23505' }),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProductsService,
+        {
+          provide: getRepositoryToken(Product),
+          useValue: repo,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(ProductsService);
+
+    await expect(
+      service.create({ article: 'A-1', name: 'P1', priceMinor: 100, quantity: 1 })
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

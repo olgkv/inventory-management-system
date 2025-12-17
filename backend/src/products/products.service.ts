@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -26,5 +26,27 @@ export class ProductsService {
       data,
       total,
     };
+  }
+
+  async create(dto: {
+    article: string;
+    name: string;
+    priceMinor: number;
+    quantity: number;
+  }): Promise<Product> {
+    try {
+      const entity = this.productRepository.create(dto);
+      return await this.productRepository.save(entity);
+    } catch (e: unknown) {
+      const maybeCode =
+        typeof e === 'object' && e !== null && 'code' in e
+          ? (e as { code?: unknown }).code
+          : undefined;
+
+      if (maybeCode === '23505') {
+        throw new ConflictException({ message: 'Article already exists' });
+      }
+      throw e;
+    }
   }
 }

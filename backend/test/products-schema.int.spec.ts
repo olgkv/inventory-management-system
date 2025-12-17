@@ -44,7 +44,7 @@ describe('DB migrations + products schema', () => {
     const password = 'test';
     const database = 'testdb';
 
-    const container = await new GenericContainer('postgres:16-alpine')
+    const container = await new GenericContainer('postgres:18-alpine')
       .withEnvironment({
         POSTGRES_USER: username,
         POSTGRES_PASSWORD: password,
