@@ -34,7 +34,7 @@ import { ProductsModule } from './products/products.module';
           password,
           database,
           synchronize: false,
-          migrationsRun: false,
+          migrationsRun: process.env.NODE_ENV !== 'test',
           autoLoadEntities: true,
           migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
         };
