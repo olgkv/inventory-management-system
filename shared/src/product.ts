@@ -1,0 +1,23 @@
+export type ProductId = number;
+
+export interface Product {
+  id: ProductId;
+  article: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface CreateProductDto {
+  article: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export type UpdateProductDto = Partial<CreateProductDto>;
+
+export interface ProductsListResponse {
+  data: Product[];
+  total: number;
+}

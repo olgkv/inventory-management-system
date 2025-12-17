@@ -2,13 +2,23 @@
   "name": "shared",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "dev": "echo \"TODO shared\"",
-    "build": "echo \"TODO shared\"",
+    "dev": "npm run build -- --watch",
+    "build": "tsc -p tsconfig.json",
     "lint": "echo \"TODO shared\"",
     "test": "echo \"TODO shared\""
   },
+  "files": [
+    "dist"
+  ],
   "keywords": [],
   "author": "",
   "license": "ISC",
