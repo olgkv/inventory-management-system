@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -34,20 +34,11 @@ export class ProductsService {
     priceMinor: number;
     quantity: number;
   }): Promise<Product> {
-    try {
-      const entity = this.productRepository.create(dto);
-      return await this.productRepository.save(entity);
-    } catch (e: unknown) {
-      const maybeCode =
-        typeof e === 'object' && e !== null && 'code' in e
-          ? (e as { code?: unknown }).code
-          : undefined;
-
-      if (maybeCode === '23505') {
-        throw new ConflictException({ message: 'Article already exists' });
-      }
-      throw e;
-    }
+    return await this.productRepository.manager.transaction(async em => {
+      const repo = em.getRepository(Product);
+      const entity = repo.create(dto);
+      return await repo.save(entity);
+    });
   }
 
   async update(
@@ -59,34 +50,27 @@ export class ProductsService {
       quantity: number;
     }>
   ): Promise<Product> {
-    const existing = await this.productRepository.findOneBy({ id });
-    if (!existing) {
-      throw new NotFoundException({ message: 'Product not found' });
-    }
+    return await this.productRepository.manager.transaction(async em => {
+      const repo = em.getRepository(Product);
+      const existing = await repo.findOneBy({ id });
 
-    const next = Object.assign(existing, dto);
-
-    try {
-      return await this.productRepository.save(next);
-    } catch (e: unknown) {
-      const maybeCode =
-        typeof e === 'object' && e !== null && 'code' in e
-          ? (e as { code?: unknown }).code
-          : undefined;
-
-      if (maybeCode === '23505') {
-        throw new ConflictException({ message: 'Article already exists' });
+      if (!existing) {
+        throw new NotFoundException({ message: 'Product not found' });
       }
 
-      throw e;
-    }
+      const next = Object.assign(existing, dto);
+      return await repo.save(next);
+    });
   }
 
   async remove(id: number): Promise<void> {
-    const result = await this.productRepository.delete({ id });
+    await this.productRepository.manager.transaction(async em => {
+      const repo = em.getRepository(Product);
+      const result = await repo.delete({ id });
 
-    if (!result.affected) {
-      throw new NotFoundException({ message: 'Product not found' });
-    }
+      if (!result.affected) {
+        throw new NotFoundException({ message: 'Product not found' });
+      }
+    });
   }
 }

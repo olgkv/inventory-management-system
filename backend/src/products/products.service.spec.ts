@@ -1,10 +1,29 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Product } from './product.entity';
 import { ProductsService } from './products.service';
+
+type RepoLike = {
+  create?: (dto: unknown) => unknown;
+  save?: (entity: unknown) => Promise<unknown>;
+  findOneBy?: (where: unknown) => Promise<unknown>;
+  delete?: (where: unknown) => Promise<{ affected?: number }>;
+};
+
+type EntityManagerLike = {
+  getRepository: (entity: unknown) => RepoLike;
+};
+
+type TransactionManagerLike = {
+  transaction: (cb: (em: EntityManagerLike) => Promise<unknown>) => Promise<unknown>;
+};
+
+function repoWithTransaction(transaction: TransactionManagerLike) {
+  return { manager: transaction };
+}
 
 describe('ProductsService', () => {
   it('calculates skip/take from page/limit and calls findAndCount', async () => {
@@ -34,15 +53,18 @@ describe('ProductsService', () => {
   });
 
   it('throws ConflictException on duplicate article (23505)', async () => {
-    const repo: Pick<Repository<Product>, 'create' | 'save'> = {
-      create: jest.fn().mockReturnValue({
-        article: 'A-1',
-        name: 'P1',
-        priceMinor: 100,
-        quantity: 1,
-      } as unknown as Product),
-      save: jest.fn().mockRejectedValue({ code: '23505' }),
+    const transaction: TransactionManagerLike = {
+      transaction: jest.fn(async cb =>
+        cb({
+          getRepository: () => ({
+            create: () => ({ article: 'A-1', name: 'P1', priceMinor: 100, quantity: 1 }),
+            save: () => Promise.reject({ code: '23505' }),
+          }),
+        })
+      ),
     };
+
+    const repo = repoWithTransaction(transaction);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -58,13 +80,21 @@ describe('ProductsService', () => {
 
     await expect(
       service.create({ article: 'A-1', name: 'P1', priceMinor: 100, quantity: 1 })
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({ code: '23505' });
   });
 
   it('throws NotFoundException when updating missing product', async () => {
-    const repo: Pick<Repository<Product>, 'findOneBy'> = {
-      findOneBy: jest.fn().mockResolvedValue(null),
+    const transaction: TransactionManagerLike = {
+      transaction: jest.fn(async cb =>
+        cb({
+          getRepository: () => ({
+            findOneBy: () => Promise.resolve(null),
+          }),
+        })
+      ),
     };
+
+    const repo = repoWithTransaction(transaction);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -90,10 +120,18 @@ describe('ProductsService', () => {
       quantity: 1,
     } as unknown as Product;
 
-    const repo: Pick<Repository<Product>, 'findOneBy' | 'save'> = {
-      findOneBy: jest.fn().mockResolvedValue(existing),
-      save: jest.fn().mockRejectedValue({ code: '23505' }),
+    const transaction: TransactionManagerLike = {
+      transaction: jest.fn(async cb =>
+        cb({
+          getRepository: () => ({
+            findOneBy: () => Promise.resolve(existing),
+            save: () => Promise.reject({ code: '23505' }),
+          }),
+        })
+      ),
     };
+
+    const repo = repoWithTransaction(transaction);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -107,13 +145,23 @@ describe('ProductsService', () => {
 
     const service = moduleRef.get(ProductsService);
 
-    await expect(service.update(1, { article: 'A-2' })).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.update(1, { article: 'A-2' })).rejects.toMatchObject({
+      code: '23505',
+    });
   });
 
   it('throws NotFoundException when deleting missing product', async () => {
-    const repo: Pick<Repository<Product>, 'delete'> = {
-      delete: jest.fn().mockResolvedValue({ affected: 0 }),
+    const transaction: TransactionManagerLike = {
+      transaction: jest.fn(async cb =>
+        cb({
+          getRepository: () => ({
+            delete: () => Promise.resolve({ affected: 0 }),
+          }),
+        })
+      ),
     };
+
+    const repo = repoWithTransaction(transaction);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -131,9 +179,17 @@ describe('ProductsService', () => {
   });
 
   it('deletes product when affected is 1', async () => {
-    const repo: Pick<Repository<Product>, 'delete'> = {
-      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    const transaction: TransactionManagerLike = {
+      transaction: jest.fn(async cb =>
+        cb({
+          getRepository: () => ({
+            delete: () => Promise.resolve({ affected: 1 }),
+          }),
+        })
+      ),
     };
+
+    const repo = repoWithTransaction(transaction);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
