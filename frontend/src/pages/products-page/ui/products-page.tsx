@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { Product } from '../../../entities/product/model/types';
-
-import { getProducts } from '../../../entities/product/api/get-products';
+import { getProducts } from '@/entities/product/api/get-products';
+import type { Product } from '@/entities/product/model/types';
 
 type ProductsPageProps = {
 	pageSize?: number;
 };
 
+const MAX_PAGE_SIZE = 50;
+
 export function ProductsPage(props: ProductsPageProps) {
-	const pageSize = props.pageSize ?? 20;
+	const pageSize = Math.min(props.pageSize ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
+
+	const [page, setPage] = useState(1);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [products, setProducts] = useState<Product[]>([]);
 	const [total, setTotal] = useState(0);
+
+	const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
 	const load = useCallback(
 		async (signal?: AbortSignal) => {
@@ -22,7 +27,7 @@ export function ProductsPage(props: ProductsPageProps) {
 			setError(null);
 
 			try {
-				const json = await getProducts({ page: 1, limit: pageSize }, signal);
+				const json = await getProducts({ page, limit: pageSize }, signal);
 				setProducts(json.data);
 				setTotal(json.total);
 			} catch (e) {
@@ -34,7 +39,7 @@ export function ProductsPage(props: ProductsPageProps) {
 				setIsLoading(false);
 			}
 		},
-		[pageSize]
+		[page, pageSize]
 	);
 
 	useEffect(() => {
@@ -47,7 +52,32 @@ export function ProductsPage(props: ProductsPageProps) {
 		<section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
 			<div className="flex items-center justify-between gap-4">
 				<h2 className="text-lg font-semibold">Products</h2>
-				<p className="text-sm text-slate-600">Total: {total}</p>
+				<div className="flex items-center gap-3">
+					<p className="text-sm text-slate-600">Total: {total}</p>
+					<span className="text-slate-300">|</span>
+					<p className="text-sm text-slate-600">
+						Page {page} of {totalPages}
+					</p>
+				</div>
+			</div>
+
+			<div className="mt-4 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					onClick={() => setPage((p) => Math.max(1, p - 1))}
+					disabled={isLoading || page <= 1}
+					className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					Prev
+				</button>
+				<button
+					type="button"
+					onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+					disabled={isLoading || page >= totalPages}
+					className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					Next
+				</button>
 			</div>
 
 			{isLoading ? (

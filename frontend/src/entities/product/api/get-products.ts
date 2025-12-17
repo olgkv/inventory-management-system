@@ -1,6 +1,6 @@
 import type { ProductsResponse } from '../model/types';
 
-import { joinApiUrl } from '../../../shared/api';
+import { joinApiUrl } from '@/shared/api';
 
 type GetProductsParams = {
   page: number;
