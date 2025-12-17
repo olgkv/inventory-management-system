@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getProducts } from '@/entities/product/api/get-products';
 import { deleteProduct } from '@/entities/product/api/delete-product';
@@ -6,7 +6,7 @@ import type { Product } from '@/entities/product/model/types';
 import { CreateProductForm } from '@/features/product-create';
 import { EditProductForm } from '@/features/product-edit';
 import { ApiError } from '@/shared/api';
-import { Modal } from '@/shared/ui';
+import { Modal, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui';
 
 type ProductsPageProps = {
 	pageSize?: number;
@@ -30,20 +30,17 @@ export function ProductsPage(props: ProductsPageProps) {
 	const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [showLoading, setShowLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [products, setProducts] = useState<Product[]>([]);
 	const [total, setTotal] = useState(0);
+	const hasLoadedOnceRef = useRef(false);
 
 	const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
 	const load = useCallback(
 		async (signal?: AbortSignal) => {
-			let loadingTimer: number | undefined;
-			if (!hasLoadedOnce) {
+			if (!hasLoadedOnceRef.current) {
 				setIsLoading(true);
-				setShowLoading(false);
-				loadingTimer = window.setTimeout(() => setShowLoading(true), 150);
 			} else {
 				setIsRefreshing(true);
 			}
@@ -53,23 +50,21 @@ export function ProductsPage(props: ProductsPageProps) {
 				const json = await getProducts({ page, limit: pageSize }, signal);
 				setProducts(json.data);
 				setTotal(json.total);
+				hasLoadedOnceRef.current = true;
 				setHasLoadedOnce(true);
 			} catch (e) {
 				if (e instanceof DOMException && e.name === 'AbortError') {
 					return;
 				}
+				hasLoadedOnceRef.current = true;
 				setHasLoadedOnce(true);
 				setError(e instanceof Error ? e.message : 'Unknown error');
 			} finally {
 				setIsLoading(false);
 				setIsRefreshing(false);
-				setShowLoading(false);
-				if (loadingTimer !== undefined) {
-					window.clearTimeout(loadingTimer);
-				}
 			}
 		},
-		[hasLoadedOnce, page, pageSize]
+		[page, pageSize]
 	);
 
 	function onCreated() {
@@ -101,14 +96,22 @@ export function ProductsPage(props: ProductsPageProps) {
 
 	async function onConfirmDelete() {
 		if (!deletingProduct) return;
+		const deletingId = deletingProduct.id;
+		const prevProducts = products;
+		const prevTotal = total;
 
 		setIsDeleting(true);
 		setDeleteError(null);
+		setProducts((items) => items.filter((p) => p.id !== deletingId));
+		setTotal((t) => Math.max(0, t - 1));
 		try {
-			await deleteProduct(deletingProduct.id);
+			await deleteProduct(deletingId);
+			// Re-fetch current page to fill a potentially missing row and sync totals.
 			setReloadToken((t) => t + 1);
 			onCancelDelete();
 		} catch (e: unknown) {
+			setProducts(prevProducts);
+			setTotal(prevTotal);
 			if (e instanceof ApiError) {
 				if (e.status === 404) {
 					setDeleteError('Product not found');
@@ -189,10 +192,9 @@ export function ProductsPage(props: ProductsPageProps) {
 				<div className="flex items-center justify-between gap-4">
 					<h2 className="text-lg font-semibold">Products</h2>
 					<div className="flex items-center gap-3">
-						{isRefreshing ? <p className="text-sm text-slate-500">Refreshing…</p> : null}
 						<p className="text-sm text-slate-600">Total: {total}</p>
 						<span className="text-slate-300">|</span>
-						<p className="text-sm text-slate-600">
+						<p className="w-28 text-right text-sm tabular-nums whitespace-nowrap text-slate-600">
 							Page {page} of {totalPages}
 						</p>
 					</div>
@@ -217,52 +219,60 @@ export function ProductsPage(props: ProductsPageProps) {
 					</button>
 				</div>
 
-				{showLoading && products.length === 0 ? (
-					<div className="mt-6 text-sm text-slate-600">Loading...</div>
-				) : error ? (
+				{error && products.length === 0 ? (
 					<div className="mt-6">
 						<p className="text-sm text-red-600">Failed to load products: {error}</p>
-						{products.length === 0 ? (
-							<button
-								type="button"
-								onClick={() => void load()}
-								className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
-							>
-								Retry
-							</button>
-						) : null}
+						<button
+							type="button"
+							onClick={() => void load()}
+							className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+						>
+							Retry
+						</button>
 					</div>
-				) : products.length === 0 ? (
-					<div className="mt-6 text-sm text-slate-600">No products found.</div>
-				) : (
-					<div className={`mt-6 overflow-x-auto ${isRefreshing ? 'opacity-70' : ''}`}>
-						<table className="w-full table-auto border-separate border-spacing-0">
-							<thead>
-								<tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-									<th className="w-12 border-b border-slate-200 pb-3 pr-4">ID</th>
-									<th className="w-40 border-b border-slate-200 pb-3 pr-4">Article</th>
-									<th className="border-b border-slate-200 pb-3 pr-4">Name</th>
-									<th className="w-24 border-b border-slate-200 pb-3 pr-4 text-right">Price</th>
-									<th className="w-16 border-b border-slate-200 pb-3 text-right">Qty</th>
-									<th className="w-32 border-b border-slate-200 pb-3 text-right">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{products.map((p) => (
-									<tr key={p.id} className="text-sm text-slate-800">
-										<td className="border-b border-slate-100 py-3 pr-4 tabular-nums">{p.id}</td>
-										<td className="border-b border-slate-100 py-3 pr-4 font-mono text-xs">
+				) : null}
+
+				<div className={`mt-6 ${isRefreshing ? 'opacity-70' : ''}`}>
+					<Table className="table-fixed border-separate border-spacing-0">
+						<colgroup>
+							<col className="w-12" />
+							<col className="w-40" />
+							<col />
+							<col className="w-24" />
+							<col className="w-20" />
+							<col className="w-36" />
+						</colgroup>
+						<TableHeader className="[&_tr]:border-slate-200">
+							<TableRow className="border-slate-200">
+								<TableHead className="border-b border-slate-200 pb-3 pr-4 text-left">ID</TableHead>
+								<TableHead className="border-b border-slate-200 pb-3 px-4 text-center">Article</TableHead>
+								<TableHead className="border-b border-slate-200 pb-3 px-4 text-center">Name</TableHead>
+								<TableHead className="border-b border-slate-200 pb-3 pr-4 text-right">Price</TableHead>
+								<TableHead className="border-b border-slate-200 pb-3 pr-4 text-right">Qty</TableHead>
+								<TableHead className="border-b border-slate-200 pb-3 text-center">Actions</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{products.length > 0
+								? products.map((p) => (
+									<TableRow key={p.id} className="text-sm text-slate-800">
+										<TableCell className="border-b border-slate-100 py-3 pr-4 tabular-nums whitespace-nowrap">
+											{p.id}
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4 font-mono text-xs">
 											<span className="block truncate">{p.article}</span>
-										</td>
-										<td className="border-b border-slate-100 py-3 pr-4">
-											<span className="block max-w-[520px] truncate">{p.name}</span>
-										</td>
-										<td className="border-b border-slate-100 py-3 pr-4 text-right tabular-nums">
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<span className="block truncate">{p.name}</span>
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4 text-right tabular-nums whitespace-nowrap">
 											{(p.priceMinor / 100).toFixed(2)}
-										</td>
-										<td className="border-b border-slate-100 py-3 text-right">{p.quantity}</td>
-										<td className="border-b border-slate-100 py-3 text-right">
-											<div className="flex items-center justify-end gap-2">
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4 text-right tabular-nums whitespace-nowrap">
+											{p.quantity}
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 text-right">
+											<div className="flex items-center justify-end gap-2 whitespace-nowrap">
 												<button
 													type="button"
 													onClick={() => {
@@ -285,13 +295,38 @@ export function ProductsPage(props: ProductsPageProps) {
 													Delete
 												</button>
 											</div>
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
+								))
+								: Array.from({ length: 10 }).map((_, i) => (
+									<TableRow key={`skeleton-${i}`} className="text-sm text-slate-800">
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<div className="h-4 w-8 rounded bg-slate-100" />
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<div className="h-4 w-28 rounded bg-slate-100" />
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<div className="h-4 w-full rounded bg-slate-100" />
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<div className="ml-auto h-4 w-16 rounded bg-slate-100" />
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3 pr-4">
+											<div className="ml-auto h-4 w-10 rounded bg-slate-100" />
+										</TableCell>
+										<TableCell className="border-b border-slate-100 py-3">
+											<div className="ml-auto h-9 w-28 rounded bg-slate-100" />
+										</TableCell>
+									</TableRow>
 								))}
-							</tbody>
-						</table>
-					</div>
-				)}
+						</TableBody>
+					</Table>
+				</div>
+
+				{hasLoadedOnce && !error && products.length === 0 ? (
+					<div className="mt-3 text-sm text-slate-600">No products found.</div>
+				) : null}
 			</section>
 		</>
 	);
