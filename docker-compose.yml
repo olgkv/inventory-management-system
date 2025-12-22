@@ -37,7 +37,7 @@ services:
       POSTGRES_PORT: 5432
       NODE_ENV: development
     working_dir: /app/backend
-    command: npm run dev
+    command: sh -c "npm run build -w shared && npm run dev"
     volumes:
       - ./backend:/app/backend
       - ./shared:/app/shared
@@ -62,7 +62,7 @@ services:
       VITE_API_URL: http://localhost:3001
       NODE_ENV: development
     working_dir: /app/frontend
-    command: npm run dev -- --host 0.0.0.0 --port 5173
+    command: sh -c "npm run build -w shared && npm run dev -- --host 0.0.0.0 --port 5173"
     volumes:
       - ./frontend:/app/frontend
       - ./shared:/app/shared

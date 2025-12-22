@@ -20,6 +20,8 @@ RUN npm ci
 COPY backend ./backend
 COPY shared ./shared
 
+RUN npm run build -w shared
+
 # Build the backend
 RUN npm run build -w backend
 

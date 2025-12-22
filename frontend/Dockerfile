@@ -20,6 +20,8 @@ RUN npm ci
 COPY frontend ./frontend
 COPY shared ./shared
 
+RUN npm run build -w shared
+
 WORKDIR /app/frontend
 EXPOSE 5173
 
@@ -40,6 +42,9 @@ RUN npm ci
 
 COPY frontend ./frontend
 COPY shared ./shared
+
+# Build shared first (frontend depends on it)
+RUN npm run build -w shared
 
 RUN npm run build -w frontend
 
