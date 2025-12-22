@@ -6,6 +6,12 @@ A full-stack inventory management application with NestJS backend, React fronten
 
 Fastest start (development):
 
+Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
 ```bash
 docker compose up
 ```
