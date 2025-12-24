@@ -46,15 +46,23 @@ describe('Pagination schemas', () => {
       expect(() => PaginationQuerySchema.parse({ limit: 10.5 })).toThrow();
     });
 
-    it('should enforce limit maximum constraint', () => {
+    it('should cap limit to maximum instead of rejecting', () => {
       const maxLimit = PAGINATION_LIMIT_MAX;
 
       // Should accept limit at exactly max
-      expect(() => PaginationQuerySchema.parse({ limit: maxLimit })).not.toThrow();
+      const result1 = PaginationQuerySchema.parse({ limit: maxLimit });
+      expect(result1.limit).toBe(maxLimit);
 
-      // Should reject limit over max
-      expect(() => PaginationQuerySchema.parse({ limit: maxLimit + 1 })).toThrow();
-      expect(() => PaginationQuerySchema.parse({ limit: maxLimit + 100 })).toThrow();
+      // Should cap limit over max to max value (not throw)
+      const result2 = PaginationQuerySchema.parse({ limit: maxLimit + 1 });
+      expect(result2.limit).toBe(maxLimit);
+
+      const result3 = PaginationQuerySchema.parse({ limit: maxLimit + 100 });
+      expect(result3.limit).toBe(maxLimit);
+
+      // Should also cap very high values
+      const result4 = PaginationQuerySchema.parse({ limit: 1000 });
+      expect(result4.limit).toBe(maxLimit);
     });
 
     it('should reject invalid input types', () => {

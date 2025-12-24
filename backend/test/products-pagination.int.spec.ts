@@ -120,10 +120,28 @@ describe('GET /products (pagination)', () => {
     expect(res2.body.data).toHaveLength(TOTAL_3 - LIMIT_2);
   });
 
-  it(`rejects limit > ${TEST_PAGINATION_LIMIT_MAX}`, async () => {
-    await request(app.getHttpServer())
+  it(`caps limit > ${TEST_PAGINATION_LIMIT_MAX} to max value and returns data`, async () => {
+    const res = await request(app.getHttpServer())
       .get('/products')
       .query({ page: PAGE_1, limit: TEST_PAGINATION_LIMIT_TOO_HIGH })
-      .expect(HttpStatus.BAD_REQUEST);
+      .expect(HttpStatus.OK);
+
+    // Should return all available items (TOTAL_3 in this case)
+    expect(res.body.total).toBe(TOTAL_3);
+    expect(res.body.data).toHaveLength(TOTAL_3);
+    // The limit in response should be capped at max
+    expect(res.body.limit).toBe(TEST_PAGINATION_LIMIT_MAX);
+  });
+
+  it(`caps very high limit to ${TEST_PAGINATION_LIMIT_MAX}`, async () => {
+    const veryHighLimit = 1000;
+    const res = await request(app.getHttpServer())
+      .get('/products')
+      .query({ page: PAGE_1, limit: veryHighLimit })
+      .expect(HttpStatus.OK);
+
+    expect(res.body.total).toBe(TOTAL_3);
+    expect(res.body.data).toHaveLength(TOTAL_3);
+    expect(res.body.limit).toBe(TEST_PAGINATION_LIMIT_MAX);
   });
 });

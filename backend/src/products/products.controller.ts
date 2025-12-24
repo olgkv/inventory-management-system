@@ -36,6 +36,7 @@ export class ProductsController {
       limit: number;
     }
   ): Promise<ProductsListResponse> {
+    const { page, limit } = query;
     const { data, total } = await this.productsService.list(query);
 
     return {
@@ -47,6 +48,8 @@ export class ProductsController {
         quantity: p.quantity,
       })),
       total,
+      page,
+      limit,
     };
   }
 
